@@ -1,25 +1,80 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "Reproducible Research"
+author: "Hugh Li"
+date: "June 12, 2015"
+output: html_document
 ---
-
-
 ## Loading and preprocessing the data
 
-
+```{r,echo=TRUE}
+if(!file.exists("./data")){dir.create("./data")}
+url<-'https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip'
+download.file(url,destfile = './a.zip',method='curl')
+unzip('a.zip')
+s<-read.csv("activity.csv")  # read data
+s$date<-as.Date(s$date, "%Y-%m-%d") #transform class to date
+```
 
 ## What is mean total number of steps taken per day?
-
-
+```{r, echo=TRUE}
+m<-with(s,tapply(steps,list(date),sum,na.rm=TRUE)) #calculate daily steps
+hist(m,xlab = 'The total number of steps per day',main='Histogram of total steps per day')
+mean(m,na.rm = TRUE)    
+median(m,na.rm=TRUE)
+```
 
 ## What is the average daily activity pattern?
+```{r}
+n<-with(s,tapply(steps,list(interval),mean,na.rm=TRUE))
+plot(x=names(n),n,xlab='Interval Identifier',ylab='Average of steps across all days',type='l',main="Average daily activity pattern")
 
+# interval which contains the maximum number of steps
+names(n)[match(max(n),n)]
+```
 
+##Imputing missing values 
+```{r}
+# count missing values
+sum(is.na(s$steps)) 
 
-## Imputing missing values
+# replace missing values with the mean for that day.
+x<-with(s,tapply(steps,list(date),mean,na.rm=TRUE)) #calculate average steps in a specific day 
+x[is.na(x)]<-0 # NaN values in x, coz missing values for a whole day. 
+x1<-rep(x,each=288) # 17568 rows with values of average steps on corresponding days
+s.new<-s
+for (i in c(1:17568)){
+  if(is.na(s.new$steps[i])==TRUE){
+   s.new$steps[i]=x1[[i]] 
+  }
+}
+m.new<-with(s.new,tapply(steps,list(date),sum,na.rm=TRUE)) #calculate daily steps
+hist(m.new,xlab = 'The total number of steps per day',main='New histogram of total steps per day')
+mean(m.new,na.rm = TRUE)    
+median(m.new,na.rm=TRUE)
+```
 
-
+Imputation methods of replacing missing values with mean of that day don't affect the estimates, which mathematically makes sense.
+Imputation increases total daily number of steps. You just add 'new' samples to the original dataset.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+```{r}
+library(lattice)
+weekday<-c('Monday','Tuesday','Wednesday','Thursday','Friday')
+s.new$w<-factor((weekdays(s.new$date) %in% weekday)+1L,levels=1:2,labels=c("weekend","weekday")) # create a new column indicating weekday or weekend
+
+#n.new<-with(s.new,tapply(steps,list(interval,w),mean,na.rm=TRUE))
+s.weekday<-subset(s.new,w=='weekday')
+s.weekend<-subset(s.new,w=='weekend')
+n.weekday<-with(s.weekday,tapply(steps,list(interval),mean,na.rm=TRUE))
+xx<-names(n.weekday)
+xx1<-as.numeric(xx)
+n.weekday1<-data.frame(xx1,n.weekday,rep('weekday',288))
+colnames(n.weekday1)<-c('Interval','ave','week')
+n.weekend<-with(s.weekend,tapply(steps,list(interval),mean,na.rm=TRUE))
+n.weekend1<-data.frame(xx1,n.weekend,rep('weekend',288))
+colnames(n.weekend1)<-c('Interval','ave','week')
+f<-rbind(n.weekday1,n.weekend1)
+xyplot(f$ave~f$Interval|f$week,xlab="Interval Identifier",ylab="Average of steps",type='l',layout=c(1,2))
+
+```
+
